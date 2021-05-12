@@ -1,1 +1,1 @@
-Waling heat map
+Walking heat maps
