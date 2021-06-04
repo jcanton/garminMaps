@@ -5,7 +5,8 @@ import pandas as pd
 import folium
 from folium import plugins as fplugins
 import configparser
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from dateutil import tz
 import os, socket
 import logging
 import gmFunctions as gmf
@@ -20,14 +21,14 @@ GARMIN_PW = config.get('garmin.maps', 'GARMIN_PW')
 GARMIN_AC = config.get('garmin.maps', 'GARMIN_ACTIVITIES')
 
 today     = date.today()
-dateStart = date(2021, 1, 1)
+dateStart = date(2021, 6, 1)
 dateEnd   = today
 dateFmt   = '%Y-%m-%d'
 
 gpxDir = 'gpxFiles'
 mapDir = 'maps'
 activityTypes = GARMIN_AC.strip().replace(' ', '').split(',')
-#activityTypes = ['walking'] # TODO remove after debugging
+activityTypes = ['walking'] # TODO remove after debugging
 
 #===============================================================================
 # Initialize logger
@@ -80,10 +81,12 @@ for activityType in activityTypes:
             with open(output_file, 'wb') as fb:
                 fb.write(gpx_data)
 
+logging.info('Done')
+logging.info('')
+
 #===============================================================================
 # Build maps
 #
-logging.info('')
 for activityType in activityTypes:
 
     logging.info('\tBuilding map for: ' + activityType)
@@ -92,14 +95,14 @@ for activityType in activityTypes:
     fmap = folium.Map(
             tiles=None,
             location=[47.34967, 8.53660],
-            zoom_start=13,
+            zoom_start=14,
             control_scale=True,
             prefer_canvas=True,
             )
-    folium.TileLayer('OpenStreetMap'      ).add_to(fmap)
-    folium.TileLayer('Stamen Terrain'     ).add_to(fmap)
-    folium.TileLayer('Stamen Toner'       ).add_to(fmap)
-    folium.TileLayer('CartoDB dark_matter').add_to(fmap)
+    folium.TileLayer('Stamen Terrain',      name='Stamen Terrain'     ).add_to(fmap)
+    folium.TileLayer('Stamen Toner',        name='Stamen Toner'       ).add_to(fmap)
+    folium.TileLayer('CartoDB dark_matter', name='CartoDB dark matter').add_to(fmap)
+    folium.TileLayer('OpenStreetMap',       name='OpenStreet Map'     ).add_to(fmap)
     fplugins.Fullscreen(
             position='topright',
             title='Fullscreen',
@@ -109,33 +112,46 @@ for activityType in activityTypes:
     heatMapData = pd.DataFrame([])
 
     # load gpx files and add tracks to map
-    fg = folium.FeatureGroup(name='GPX tracks', show=True)
-    fmap.add_child(fg)
     inputDir = os.path.join(gpxDir, activityType)
     gpxFiles = os.listdir(inputDir)
+    # create a new python dict to contain our geojson data, using geojson format
+    gjTracks = {'type':'FeatureCollection', 'features':[]}
     for gpxFile in gpxFiles:
-        gpx_df, gpx_points = gmf.gpxParse(os.path.join(inputDir, gpxFile))
+        gpx_df, gpx_points, gpx = gmf.gpxParse(open(os.path.join(inputDir, gpxFile)))
         # add data to heatMapData
         heatMapData = heatMapData.append(gpx_df)
         #
         # add gpx track to map
-        tooltip = folium.Tooltip(text='')
-        popup = folium.Popup(html_camino_start, max_width=400)
-        folium.PolyLine(
-                gpx_points,
-                tooltip=tooltip,
-                popup=popup,
-                color='blue',
-                weight=4.0,
-                opacity=.5
-                ).add_to(fmap).add_to(fg)
+        trackStart = gpx.time.astimezone(tz.tzlocal()).strftime('%Y-%m-%d  %H:%M')
+        geojsonProperties = {
+                'Time'     : trackStart,
+                'Distance' : '{0:.2f} km'.format(gpx.length_3d()/1000),
+                'Duration' : '{0:s}'     .format(str(timedelta(seconds=gpx.get_duration()))),
+                'Climbed'  : '{0:d} m'   .format(int(gpx.get_uphill_downhill().uphill)),
+                'Descended': '{0:d} m'   .format(int(gpx.get_uphill_downhill().downhill)),
+                }
+        feature = gmf.df_to_geojsonF(gpx_df, properties=geojsonProperties),
+        # some bug
+        if type(feature) is tuple:
+            feature = feature[0]
+        # add this feature (aka, converted dataframe) to the list of features inside our dict
+        gjTracks['features'].append(feature)
 
     fplugins.HeatMap(
             data=heatMapData[['Latitude', 'Longitude']],
             name='Heat map',
-            radius=8,
-            max_zoom=13,
+            radius=12,
+            #max_zoom=13,
             show=False,
+            ).add_to(fmap)
+
+    folium.GeoJson(
+            gjTracks,
+            tooltip=folium.GeoJsonTooltip(fields=['Time'], labels=False),
+            popup=folium.GeoJsonPopup(fields=list(geojsonProperties.keys())),
+            style_function     = lambda x: {'color':'blue', 'weight':3, 'opacity':.5},
+            highlight_function = lambda x: {'color':'red',  'weight':3, 'opacity':1},
+            name='GPX tracks'
             ).add_to(fmap)
 
     fmap.add_child(folium.LayerControl())
@@ -146,3 +162,6 @@ for activityType in activityTypes:
         os.makedirs(outputDir)
 
     fmap.save(os.path.join(mapDir, 'map_{0:s}.html'.format(activityType)))
+
+logging.info('Done')
+logging.info('')
