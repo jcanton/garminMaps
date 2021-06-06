@@ -28,7 +28,6 @@ dateFmt   = '%Y-%m-%d'
 gpxDir = 'gpxFiles'
 mapDir = 'maps'
 activityTypes = GARMIN_AC.strip().replace(' ', '').split(',')
-activityTypes = ['walking'] # TODO remove after debugging
 
 #===============================================================================
 # Initialize logger
