@@ -94,7 +94,7 @@ for activityType in activityTypes:
     fmap = folium.Map(
             tiles=None,
             location=[47.34967, 8.53660],
-            zoom_start=14,
+            zoom_start=13,
             control_scale=True,
             prefer_canvas=True,
             )
