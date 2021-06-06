@@ -21,7 +21,7 @@ GARMIN_PW = config.get('garmin.maps', 'GARMIN_PW')
 GARMIN_AC = config.get('garmin.maps', 'GARMIN_ACTIVITIES')
 
 today     = date.today()
-dateStart = date(2021, 6, 1)
+dateStart = date(2021, 1, 1)
 dateEnd   = today
 dateFmt   = '%Y-%m-%d'
 
