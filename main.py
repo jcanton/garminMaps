@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-from garminconnect import Garmin
 import configparser
 from datetime import date, datetime
 import os, socket
 import logging
+from garminconnect import Garmin
 import gmFunctions as gmf
 
 #===============================================================================
@@ -15,14 +15,17 @@ config.read(os.path.join(os.path.expanduser('~'), '.python-github.cfg'))
 GARMIN_ID = config.get('garmin.maps', 'GARMIN_ID')
 GARMIN_PW = config.get('garmin.maps', 'GARMIN_PW')
 GARMIN_AC = config.get('garmin.maps', 'GARMIN_ACTIVITIES')
+GARMIN_DS = config.get('garmin.maps', 'GARMIN_DATESTART')
+
+activityTypes = GARMIN_AC.strip().replace(' ', '').split(',')
+cpDateStart     = [int(ymd) for ymd in GARMIN_DS.strip().split('-')]
 
 today     = date.today()
-dateStart = date(2021, 1, 1)
+dateStart = date(cpDateStart[0], cpDateStart[1], cpDateStart[2])
 dateEnd   = today
 
 gpxDir = 'gpxFiles'
 mapDir = 'maps'
-activityTypes = GARMIN_AC.strip().replace(' ', '').split(',')
 
 #===============================================================================
 # Initialize logger
@@ -51,9 +54,9 @@ logging.info('Unit system: ' + unitSystem)
 #===============================================================================
 # Save activities to gpx files
 #
-gmf.activitiesToGpx(dateStart, dateEnd, client, activityTypes, gpxDir, logging)
+doneAct = gmf.activitiesToGpx(cpDateStart, dateEnd, client, activityTypes, gpxDir, logging)
 
 #===============================================================================
 # Build maps
 #
-gmf.buildMaps(activityTypes, gpxDir, mapDir, logging)
+doneMap = gmf.buildMaps(activityTypes, gpxDir, mapDir, logging)

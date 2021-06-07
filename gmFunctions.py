@@ -89,6 +89,7 @@ def activitiesToGpx(dateStart, dateEnd, client, activityTypes, gpxDir, logging):
     
     logging.info('Done')
     logging.info('')
+    return 0
 
 #===============================================================================
 # Build maps
@@ -180,3 +181,4 @@ def buildMaps(activityTypes, gpxDir, mapDir, logging):
     
     logging.info('Done')
     logging.info('')
+    return 0
