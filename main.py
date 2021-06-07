@@ -2,10 +2,15 @@
 
 import configparser
 from datetime import date, datetime
-import os, socket
+import os, socket, sys
 import logging
-from garminconnect import Garmin
 import gmFunctions as gmf
+from garminconnect import (
+    Garmin,
+    GarminConnectConnectionError,
+    GarminConnectTooManyRequestsError,
+    GarminConnectAuthenticationError,
+)
 
 #===============================================================================
 # Data and config
@@ -24,16 +29,31 @@ today     = date.today()
 dateStart = date(cpDateStart[0], cpDateStart[1], cpDateStart[2])
 dateEnd   = today
 
+execLog = 'log_exec.log'
+msgLog  = 'log_msg.log'
 gpxDir = 'gpxFiles'
 mapDir = 'maps'
 
 #===============================================================================
+# Check whether the script already ran today
+#
+if os.path.isfile(execLog):
+
+    with open(execLog, 'r') as filehandle:
+        lastRun = datetime.fromisoformat( filehandle.readline() )
+    
+        if lastRun.date() == today:
+            # exit
+            print('Already run today')
+            sys.exit()
+
+#===============================================================================
 # Initialize logger
 #
-logging.basicConfig(filename='log_maps.log',
-                    level=logging.INFO,
-                    format='%(message)s',
-                    filemode='w')
+logging.basicConfig(filename = msgLog,
+                    level = logging.INFO,
+                    format = '%(message)s',
+                    filemode = 'w')
 
 logging.info('============= start mapping =============')
 logging.info('Host: ' + socket.gethostname())
@@ -42,11 +62,21 @@ logging.info('Date: ' + datetime.now().strftime('%Y-%m-%d %H:%M'))
 #===============================================================================
 # Init Garmin client and log in
 #
-client = Garmin(GARMIN_ID, GARMIN_PW)
-client.login()
+try:
+    client = Garmin(GARMIN_ID, GARMIN_PW)
+    client.login()
+except (
+    GarminConnectConnectionError,
+    GarminConnectAuthenticationError,
+    GarminConnectTooManyRequestsError,
+) as err:
+    logging.info('Error occurred during Garmin Connect Client login: %s' % err)
+    sys.exit()
+except Exception:  # pylint: disable=broad-except
+    logging.info('Unknown error occurred during Garmin Connect Client login')
+    sys.exit()
 fullName   = client.get_full_name()
 unitSystem = client.get_unit_system()
-todayStats = client.get_stats(today.isoformat()) # TODO unused for now
 
 logging.info('Garmin user: ' + fullName)
 logging.info('Unit system: ' + unitSystem)
@@ -54,9 +84,17 @@ logging.info('Unit system: ' + unitSystem)
 #===============================================================================
 # Save activities to gpx files
 #
-doneAct = gmf.activitiesToGpx(cpDateStart, dateEnd, client, activityTypes, gpxDir, logging)
+doneAct = gmf.activitiesToGpx(dateStart, dateEnd, client, activityTypes, gpxDir, logging)
 
 #===============================================================================
 # Build maps
 #
 doneMap = gmf.buildMaps(activityTypes, gpxDir, mapDir, logging)
+
+#===============================================================================
+# Update last exec file
+#
+if (doneAct == 0) and (doneMap == 0):
+    # the script ran succesfully
+    with open(execLog, 'w') as filehandle:
+        filehandle.write(datetime.now().isoformat())

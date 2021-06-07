@@ -58,8 +58,13 @@ def df_to_geojsonF(df, properties={}, lat='Latitude', lon='Longitude'):
 #
 def activitiesToGpx(dateStart, dateEnd, client, activityTypes, gpxDir, logging):
 
-    import os
+    import os, sys
     from datetime import datetime
+    from garminconnect import (
+        GarminConnectConnectionError,
+        GarminConnectTooManyRequestsError,
+        GarminConnectAuthenticationError,
+    )
 
     dateFmt   = '%Y-%m-%d'
 
@@ -73,7 +78,18 @@ def activitiesToGpx(dateStart, dateEnd, client, activityTypes, gpxDir, logging):
         if not os.path.exists(outputDir):
             os.makedirs(outputDir)
         
-        activities = client.get_activities_by_date(dateStart.strftime(dateFmt), dateEnd.strftime(dateFmt), activityType)
+        try:
+            activities = client.get_activities_by_date(dateStart.strftime(dateFmt), dateEnd.strftime(dateFmt), activityType)
+        except (
+            GarminConnectConnectionError,
+            GarminConnectAuthenticationError,
+            GarminConnectTooManyRequestsError,
+        ) as err:
+            logging.info('\tError occurred during Garmin Connect Client get activities: %s' % err)
+            sys.exit()
+        except Exception as err:  # pylint: disable=broad-except
+            logging.info('\tUnknown error occurred during Garmin Connect Client get activities:\n%s' % err)
+            sys.exit()
         
         for activity in activities:
         
@@ -87,7 +103,7 @@ def activitiesToGpx(dateStart, dateEnd, client, activityTypes, gpxDir, logging):
                 with open(output_file, 'wb') as fb:
                     fb.write(gpx_data)
     
-    logging.info('Done')
+    logging.info('\tDone')
     logging.info('')
     return 0
 
@@ -179,6 +195,6 @@ def buildMaps(activityTypes, gpxDir, mapDir, logging):
     
         fmap.save(os.path.join(mapDir, 'map_{0:s}.html'.format(activityType)))
     
-    logging.info('Done')
+    logging.info('\tDone')
     logging.info('')
     return 0
